@@ -16,7 +16,9 @@ trainingChannel = 4;
 % 1 = Delta, 2 = Theta, 3 = Alpha, 4 = Beta
 trainingBand = 3;
 % set the SD multiplier for difficulty of control
-controlDifficulty = 2;
+controlDifficulty = 1;
+% the length of baseline data collection, in seconds
+baselineTime = 5;
 
 % muse sampling rate
 sampleRate = 256;
@@ -87,8 +89,8 @@ previousResults = zeros(4,2,3);
 disp('Starting Data Acquisition...');
 
 % loop through and get some data and plot it
-global endCollection
-endCollection = 0;
+global keyControl
+keyControl = 0;
 collectData = true;
 f = figure;
 dataCounter = 1;
@@ -130,11 +132,11 @@ col(29,:) = [0 0 1]; % -- blue
 col(30,:) = [0 0 1]; % -- blue
 c = 1:1:30;
 
-disp('Collecting Baseline Data... this will take 30 seconds...');
+disp('Collecting Baseline Data...');
 tic;
 endTime = toc;
 
-while endTime < 30
+while endTime < baselineTime
     
     for channelCounter = 1:4
     
@@ -191,10 +193,25 @@ end
 
 % get the stats on the baseline power
 meanBaselinePower = mean(baselineData);
-sdBaselinePower = std(baseLineData);
+sdBaselinePower = std(baselineData);
+criteria = meanBaselinePower + (controlDifficulty * sdBaselinePower);
 
 % the on off switch for control
 control = 0;
+
+noFlightMode = 0;
+
+if noFlightMode == 1
+    % connect to the drone
+    droneObj = ryze("Tello");
+    disp('Drone Connected!');
+    takeoff(droneObj);
+    disp('Drone Flying');
+end
+tic;
+
+data = [];
+checkCounter = 1;
 
 while collectData
     
@@ -247,44 +264,86 @@ while collectData
     end
     tempFFT = mean(tempFFT);
     
-    if tempFFT > meanBaselinePower + (controlDifficulty * sdBaselinePower)
+    currentTime = toc;
+    
+    if currentTime > 0.5
+    
+        if tempFFT >= criteria
         
-        % turn on control and change color of bar graph
-        control = 1;
-        col = [[0 1 0];  col];
+            % turn on control and change color of bar graph
+            control = 1;
+            col = [[0 1 0];  col];
+            col(31,:) = [];
+            if noFlightMode == 1
+                moveback(droneObj);
+            end
+
+        end
+        if tempFFT < criteria
+
+            % turn off control and change color of bar graph
+            control = 2;
+            col = [[0 0 1];  col];
+            col(31,:) = [];
+            if noFlightMode == 1
+                moveforward(droneObj);
+            end
+
+        end
         
-    else
+        data(checkCounter,1) = tempFFT;
+        data(checkCounter,2) = criteria;
+        data(checkCounter,3) = control;
+        data(checkCounter,4) = currentTime;
+        checkCounter = checkCounter + 1;
         
-        % turn off control and change color of bar graph
-        control = 0;
-        col = [[0 0 1];  col];
+        % update power plot data
+        barData = [tempFFT barData];
+        barData(31) = [];
+
+        % draw the bar plot
+        clf;
+        barPlot = bar(c,barData,'FaceColor','flat');
+        barPlot.CData = col;
+        ylim([0 yMax]);
+        hold on;
+        yline(criteria,'-.r');
+        drawnow; 
+
+        tic;
+        currentTime = 0;
         
     end
-    
-    col(31,:) = [];
-    
-    % update power plot data
-    barData = [tempFFT barData];
-    barData(31) = [];
-    
-    barPlot = bar(c,fftCoefficients(1,:),'FaceColor','flat');
-    barPlot.CData = col;
-    ylim([0 yMax]);
-    drawnow; 
-   
-    if endCollection == 1
+ 
+    if keyControl == 1  
         collectData = false;
+        if noFlightMode == 1
+            land(droneObj);
+        end
     end
+    if keyControl == 3 
+        collectData = false;
+        if noFlightMode == 1
+            moveup(droneObj,'Distance',1,'WaitUntilDone',false);
+        end
+    end
+    
 end
 
 disp('Done!');
 
 % create a callback function to stop data collection
 function keyPressed(source, event)
-    global endCollection
+    global keyControl
     KeyPressed=event.Key;
-    if strcmp(KeyPressed,'space')
-        endCollection = 1;
+    if strcmp(KeyPressed,'l')
+        keyControl = 1;
         close all;
+    end
+    if strcmp(KeyPressed,'t')
+        keyControl = 2;
+    end
+    if strcmp(KeyPressed,'h')
+        keyControl = 3;
     end
 end
