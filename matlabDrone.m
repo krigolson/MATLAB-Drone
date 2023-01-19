@@ -11,7 +11,7 @@ droneObj = ryze("Tello");
 disp('Drone Connected!');
 
 % specify a Muse Name
-museName = 'MuseS-10A8';
+museName = 'MuseS-4E6B';
 
 % specify a training channel and a frequency
 % channels, 1 = TP9, 2 = AF7, 3 = AF8, 4 = TP10
@@ -20,9 +20,9 @@ trainingChannel = 4;
 % 1 = Delta, 2 = Theta, 3 = Alpha, 4 = Beta
 trainingBand = 3;
 % set the SD multiplier for difficulty of control
-controlDifficulty = 2;
+controlDifficulty = 1;
 % the length of baseline data collection, in seconds
-baselineTime = 10;
+baselineTime = 5;
 
 % muse sampling rate
 sampleRate = 256;
